@@ -13,6 +13,7 @@
 #include <vector>
 #include <map>
 #include <functional>
+#include <thread> // Add this include for std::thread
 
 // Function to verify correctness of all implementations
 bool verify_implementations(size_t size) {

@@ -11,6 +11,10 @@
 #include <numeric>
 #include <algorithm>
 
+// Declare the CUDA kernel used in analyze_memory_transfer
+extern "C" __global__ void matrixMulSharedKernel(const float* A, const float* B, float* C, 
+                                                int m, int n, int k);
+
 // Benchmark all GPU implementations across different matrix sizes
 void run_gpu_benchmarks(const std::vector<size_t>& sizes, int iterations = 5) {
     std::cout << "===========================================" << std::endl;
@@ -156,8 +160,8 @@ void analyze_memory_transfer(const std::vector<size_t>& sizes) {
         // Measure computation time
         Timer compute_timer;
         compute_timer.start();
-        matrixMulSharedKernel<<<gridDim, blockDim>>>(d_A, d_B, d_C, size, size, size);
-        cudaDeviceSynchronize();
+        // Replace direct kernel call with wrapper function
+        runMatrixMulSharedKernel(d_A, d_B, d_C, size, size, size, gridDim, blockDim);
         compute_timer.stop();
         
         // Measure device to host transfer time

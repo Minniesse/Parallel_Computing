@@ -3,6 +3,10 @@
 #include "common/matrix.h"
 #include <cuda_runtime.h>
 
+// Forward declare the wrapper function for direct kernel access
+extern "C" void runMatrixMulSharedKernel(const float* A, const float* B, float* C, 
+                                        int m, int n, int k, dim3 gridDim, dim3 blockDim);
+
 namespace MatrixMult {
 namespace GPU {
 

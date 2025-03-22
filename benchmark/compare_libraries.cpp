@@ -2,13 +2,18 @@
 #include "common/timing.h"
 #include "cpu/naive.h"
 #include "cpu/threaded.h"
+#include "cpu/simd.h"  // Add this include for is_avx512_supported()
 #include "gpu/cuda_wrapper.h"
+#include "adaptive.h"
 
 #include <iostream>
 #include <iomanip>
 #include <fstream>
 #include <vector>
 #include <string>
+#include <thread>
+#include <numeric>
+#include <algorithm>
 
 // If MKL is available, include MKL headers
 #ifdef USE_MKL

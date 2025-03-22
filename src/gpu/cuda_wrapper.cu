@@ -65,6 +65,13 @@ __global__ void matrixMulSharedKernel(const float* A, const float* B, float* C,
     }
 }
 
+// Exported C-style wrapper function for the memory transfer benchmark
+extern "C" void runMatrixMulSharedKernel(const float* A, const float* B, float* C, 
+                                         int m, int n, int k, dim3 gridDim, dim3 blockDim) {
+    matrixMulSharedKernel<<<gridDim, blockDim>>>(A, B, C, m, n, k);
+    cudaDeviceSynchronize();
+}
+
 namespace MatrixMult {
 namespace GPU {
 
