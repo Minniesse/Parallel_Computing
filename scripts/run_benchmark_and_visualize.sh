@@ -55,7 +55,18 @@ fi
 cd "$SCRIPT_DIR"
 echo "Generating visualizations..."
 if [ -f "./visualize_benchmarks.py" ]; then
-    python3 ./visualize_benchmarks.py --input "$RESULTS_DIR/library_comparison_results.csv" --cpu-input "$RESULTS_DIR/cpu_benchmark_results.csv" --gpu-input "$RESULTS_DIR/gpu_benchmark_results.csv" --output-dir "$VISUALIZATIONS_DIR"
+    # Only use the parameters currently supported by the script
+    python3 ./visualize_benchmarks.py --input "$RESULTS_DIR/library_comparison_results.csv" --output-dir "$VISUALIZATIONS_DIR"
+    
+    # Visualize CPU results if available
+    if [ -f "$RESULTS_DIR/cpu_benchmark_results.csv" ]; then
+        echo "Note: CPU benchmark results available but not visualized. Update visualize_benchmarks.py to support them."
+    fi
+    
+    # Visualize GPU results if available
+    if [ -f "$RESULTS_DIR/gpu_benchmark_results.csv" ]; then
+        echo "Note: GPU benchmark results available but not visualized. Update visualize_benchmarks.py to support them."
+    fi
 else
     echo "Visualization script not found."
     exit 1

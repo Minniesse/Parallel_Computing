@@ -1,296 +1,308 @@
 #!/usr/bin/env python3
 
-import os
-import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
+import os
 import argparse
 from pathlib import Path
 
-def create_directory_if_not_exists(directory):
-    """Create directory if it doesn't exist."""
-    if not os.path.exists(directory):
-        os.makedirs(directory)
+def create_directory(directory):
+    """Create a directory if it doesn't exist."""
+    os.makedirs(directory, exist_ok=True)
 
-def read_benchmark_data(file_path):
-    """Read benchmark data from CSV file."""
-    if not os.path.exists(file_path):
-        raise FileNotFoundError(f"Benchmark data file not found: {file_path}")
+def load_data(csv_file):
+    """Load benchmark data from a CSV file."""
+    if not os.path.exists(csv_file):
+        raise FileNotFoundError(f"File not found: {csv_file}")
     
-    return pd.read_csv(file_path)
+    return pd.read_csv(csv_file)
 
-def plot_execution_time(df, output_dir, log_scale=True):
-    """Plot execution time comparison."""
+def plot_gflops_comparison(df, output_dir):
+    """Plot GFLOPS comparison for all implementations."""
     plt.figure(figsize=(12, 8))
     
-    plt.plot(df['Matrix Size'], df['Our Best (ms)'], 'o-', color='red', linewidth=2, markersize=8, label='Our Algorithm')
-    plt.plot(df['Matrix Size'], df['OpenBLAS (ms)'], 's-', color='purple', linewidth=2, markersize=8, label='OpenBLAS')
-    plt.plot(df['Matrix Size'], df['Intel MKL (ms)'], '^-', color='blue', linewidth=2, markersize=8, label='Intel MKL')
-    plt.plot(df['Matrix Size'], df['cuBLAS (ms)'], 'D-', color='green', linewidth=2, markersize=8, label='cuBLAS')
+    matrix_sizes = df['Matrix Size'].values
     
-    plt.title('Matrix Multiplication Execution Time Comparison', fontsize=16)
-    plt.xlabel('Matrix Size (N×N)', fontsize=14)
-    plt.ylabel('Execution Time (ms)', fontsize=14)
+    # Plot GFLOPS for each implementation
+    if 'Our Best (GFLOPS)' in df.columns:
+        plt.plot(matrix_sizes, df['Our Best (GFLOPS)'], 'o-', color='red', linewidth=2, 
+                 label='Our Implementation')
     
-    if log_scale:
-        plt.yscale('log')
-        plt.grid(True, which="both", ls="--", alpha=0.7)
-        output_file = os.path.join(output_dir, 'execution_time_log_scale.png')
-    else:
-        plt.grid(True, ls="--", alpha=0.7)
-        output_file = os.path.join(output_dir, 'execution_time.png')
+    if 'OpenBLAS (GFLOPS)' in df.columns:
+        plt.plot(matrix_sizes, df['OpenBLAS (GFLOPS)'], 's-', color='blue', linewidth=2, 
+                 label='OpenBLAS')
     
-    plt.legend(fontsize=12)
-    plt.tight_layout()
-    plt.savefig(output_file, dpi=300)
-    print(f"Saved execution time plot to {output_file}")
-    plt.close()
-
-def plot_gflops(df, output_dir):
-    """Plot GFLOPS performance comparison."""
-    plt.figure(figsize=(12, 8))
+    if 'Intel MKL (GFLOPS)' in df.columns:
+        plt.plot(matrix_sizes, df['Intel MKL (GFLOPS)'], '^-', color='green', linewidth=2, 
+                 label='Intel MKL')
     
-    plt.plot(df['Matrix Size'], df['Our Best (GFLOPS)'], 'o-', color='red', linewidth=2, markersize=8, label='Our Algorithm')
-    plt.plot(df['Matrix Size'], df['OpenBLAS (GFLOPS)'], 's-', color='purple', linewidth=2, markersize=8, label='OpenBLAS')
-    plt.plot(df['Matrix Size'], df['Intel MKL (GFLOPS)'], '^-', color='blue', linewidth=2, markersize=8, label='Intel MKL')
-    plt.plot(df['Matrix Size'], df['cuBLAS (GFLOPS)'], 'D-', color='green', linewidth=2, markersize=8, label='cuBLAS')
+    if 'cuBLAS (GFLOPS)' in df.columns:
+        plt.plot(matrix_sizes, df['cuBLAS (GFLOPS)'], 'D-', color='purple', linewidth=2, 
+                 label='cuBLAS')
     
     plt.title('Matrix Multiplication Performance Comparison', fontsize=16)
     plt.xlabel('Matrix Size (N×N)', fontsize=14)
     plt.ylabel('Performance (GFLOPS)', fontsize=14)
-    plt.grid(True, ls="--", alpha=0.7)
-    
+    plt.grid(True, linestyle='--', alpha=0.7)
     plt.legend(fontsize=12)
-    plt.tight_layout()
     
-    output_file = os.path.join(output_dir, 'gflops_performance.png')
-    plt.savefig(output_file, dpi=300)
-    print(f"Saved GFLOPS performance plot to {output_file}")
+    plt.xscale('log', base=2)
+    plt.yscale('log')
+    
+    # Set x-axis to show actual matrix sizes
+    plt.xticks(matrix_sizes, [str(size) for size in matrix_sizes])
+    
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_dir, 'gflops_comparison.png'), dpi=300)
     plt.close()
 
-def plot_percentage_of_libraries(df, output_dir):
-    """Plot percentage performance relative to libraries."""
+def plot_execution_time(df, output_dir):
+    """Plot execution time comparison."""
     plt.figure(figsize=(12, 8))
     
+    matrix_sizes = df['Matrix Size'].values
+    
+    # Plot time for each implementation (in milliseconds)
+    if 'Our Best (ms)' in df.columns:
+        plt.plot(matrix_sizes, df['Our Best (ms)'], 'o-', color='red', linewidth=2, 
+                 label='Our Implementation')
+    
+    if 'OpenBLAS (ms)' in df.columns:
+        plt.plot(matrix_sizes, df['OpenBLAS (ms)'], 's-', color='blue', linewidth=2, 
+                 label='OpenBLAS')
+    
+    if 'Intel MKL (ms)' in df.columns:
+        plt.plot(matrix_sizes, df['Intel MKL (ms)'], '^-', color='green', linewidth=2, 
+                 label='Intel MKL')
+    
+    if 'cuBLAS (ms)' in df.columns:
+        plt.plot(matrix_sizes, df['cuBLAS (ms)'], 'D-', color='purple', linewidth=2, 
+                 label='cuBLAS')
+    
+    plt.title('Matrix Multiplication Execution Time Comparison', fontsize=16)
+    plt.xlabel('Matrix Size (N×N)', fontsize=14)
+    plt.ylabel('Execution Time (ms)', fontsize=14)
+    plt.grid(True, linestyle='--', alpha=0.7)
+    plt.legend(fontsize=12)
+    
+    plt.xscale('log', base=2)
+    plt.yscale('log')
+    
+    # Set x-axis to show actual matrix sizes
+    plt.xticks(matrix_sizes, [str(size) for size in matrix_sizes])
+    
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_dir, 'execution_time.png'), dpi=300)
+    plt.close()
+
+def plot_percentage_comparison(df, output_dir):
+    """Plot percentage of our implementation relative to libraries."""
+    plt.figure(figsize=(12, 8))
+    
+    matrix_sizes = df['Matrix Size'].values
+    
+    # Plot percentage for each library comparison
+    if 'Percentage of OpenBLAS' in df.columns:
+        plt.plot(matrix_sizes, df['Percentage of OpenBLAS'], 's-', color='blue', linewidth=2, 
+                 label='vs OpenBLAS')
+    
+    if 'Percentage of Intel MKL' in df.columns:
+        plt.plot(matrix_sizes, df['Percentage of Intel MKL'], '^-', color='green', linewidth=2, 
+                 label='vs Intel MKL')
+    
+    if 'Percentage of cuBLAS' in df.columns:
+        plt.plot(matrix_sizes, df['Percentage of cuBLAS'], 'D-', color='purple', linewidth=2, 
+                 label='vs cuBLAS')
+    
+    # Add a reference line at 100%
     plt.axhline(y=100, color='black', linestyle='--', alpha=0.5, label='100% (Equal Performance)')
     
-    plt.plot(df['Matrix Size'], df['Percentage of OpenBLAS'], 's-', color='purple', linewidth=2, markersize=8, label='% of OpenBLAS')
-    plt.plot(df['Matrix Size'], df['Percentage of Intel MKL'], '^-', color='blue', linewidth=2, markersize=8, label='% of Intel MKL')
-    plt.plot(df['Matrix Size'], df['Percentage of cuBLAS'], 'D-', color='green', linewidth=2, markersize=8, label='% of cuBLAS')
-    
-    plt.title('Our Algorithm Performance Relative to Libraries', fontsize=16)
+    plt.title('Our Implementation Performance Relative to Libraries', fontsize=16)
     plt.xlabel('Matrix Size (N×N)', fontsize=14)
-    plt.ylabel('Percentage of Library Performance (%)', fontsize=14)
-    plt.grid(True, ls="--", alpha=0.7)
-    
+    plt.ylabel('Percentage (%)', fontsize=14)
+    plt.grid(True, linestyle='--', alpha=0.7)
     plt.legend(fontsize=12)
-    plt.tight_layout()
     
-    output_file = os.path.join(output_dir, 'percentage_of_libraries.png')
-    plt.savefig(output_file, dpi=300)
-    print(f"Saved percentage performance plot to {output_file}")
+    plt.xscale('log', base=2)
+    
+    # Set x-axis to show actual matrix sizes
+    plt.xticks(matrix_sizes, [str(size) for size in matrix_sizes])
+    
+    # Set y-axis limits to show percentages clearly
+    plt.ylim(0, max(100, df[['Percentage of OpenBLAS', 'Percentage of Intel MKL', 
+                            'Percentage of cuBLAS']].max().max() * 1.1))
+    
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_dir, 'percentage_comparison.png'), dpi=300)
     plt.close()
 
 def create_bar_chart(df, output_dir):
-    """Create bar chart comparing performance for specific matrix sizes."""
-    # Select a subset of matrix sizes for clarity
+    """Create bar chart for selected matrix sizes."""
+    # For clarity, use a subset of matrix sizes if there are many
     if len(df) > 4:
-        # Choose a representative subset (small, medium, large)
-        indices = [0, len(df)//3, 2*len(df)//3, len(df)-1]
-        selected_df = df.iloc[indices]
+        indices = [0, len(df)//3, 2*len(df)//3, -1]  # First, 1/3, 2/3, and last
+        selected_df = df.iloc[indices].copy()
     else:
-        selected_df = df
+        selected_df = df.copy()
     
-    matrix_sizes = selected_df['Matrix Size'].astype(str).tolist()
+    plt.figure(figsize=(14, 8))
     
-    # Create figure with subplots
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 8))
+    # Set up the positions for bars
+    matrix_sizes = selected_df['Matrix Size'].values
+    x = np.arange(len(matrix_sizes))
+    width = 0.2  # Width of bars
     
-    # Set width of bars
-    bar_width = 0.2
-    index = np.arange(len(matrix_sizes))
+    # Create bars for each implementation
+    if 'Our Best (GFLOPS)' in selected_df.columns:
+        plt.bar(x - 1.5*width, selected_df['Our Best (GFLOPS)'], width, 
+                label='Our Implementation', color='red')
     
-    # Time comparison (lower is better)
-    ax1.bar(index - 1.5*bar_width, selected_df['Our Best (ms)'], bar_width, color='red', label='Our Algorithm')
-    ax1.bar(index - 0.5*bar_width, selected_df['OpenBLAS (ms)'], bar_width, color='purple', label='OpenBLAS')
-    ax1.bar(index + 0.5*bar_width, selected_df['Intel MKL (ms)'], bar_width, color='blue', label='Intel MKL')
-    ax1.bar(index + 1.5*bar_width, selected_df['cuBLAS (ms)'], bar_width, color='green', label='cuBLAS')
+    if 'OpenBLAS (GFLOPS)' in selected_df.columns:
+        plt.bar(x - 0.5*width, selected_df['OpenBLAS (GFLOPS)'], width, 
+                label='OpenBLAS', color='blue')
     
-    ax1.set_xlabel('Matrix Size (N×N)', fontsize=14)
-    ax1.set_ylabel('Execution Time (ms)', fontsize=14)
-    ax1.set_title('Execution Time Comparison (lower is better)', fontsize=16)
-    ax1.set_xticks(index)
-    ax1.set_xticklabels(matrix_sizes)
-    ax1.legend()
+    if 'Intel MKL (GFLOPS)' in selected_df.columns:
+        plt.bar(x + 0.5*width, selected_df['Intel MKL (GFLOPS)'], width, 
+                label='Intel MKL', color='green')
     
-    # GFLOPS comparison (higher is better)
-    ax2.bar(index - 1.5*bar_width, selected_df['Our Best (GFLOPS)'], bar_width, color='red', label='Our Algorithm')
-    ax2.bar(index - 0.5*bar_width, selected_df['OpenBLAS (GFLOPS)'], bar_width, color='purple', label='OpenBLAS')
-    ax2.bar(index + 0.5*bar_width, selected_df['Intel MKL (GFLOPS)'], bar_width, color='blue', label='Intel MKL')
-    ax2.bar(index + 1.5*bar_width, selected_df['cuBLAS (GFLOPS)'], bar_width, color='green', label='cuBLAS')
+    if 'cuBLAS (GFLOPS)' in selected_df.columns:
+        plt.bar(x + 1.5*width, selected_df['cuBLAS (GFLOPS)'], width, 
+                label='cuBLAS', color='purple')
     
-    ax2.set_xlabel('Matrix Size (N×N)', fontsize=14)
-    ax2.set_ylabel('Performance (GFLOPS)', fontsize=14)
-    ax2.set_title('Performance Comparison (higher is better)', fontsize=16)
-    ax2.set_xticks(index)
-    ax2.set_xticklabels(matrix_sizes)
-    ax2.legend()
+    plt.title('Matrix Multiplication Performance by Implementation', fontsize=16)
+    plt.xlabel('Matrix Size', fontsize=14)
+    plt.ylabel('Performance (GFLOPS)', fontsize=14)
+    plt.xticks(x, [str(size) for size in matrix_sizes])
+    plt.legend(fontsize=12)
+    plt.grid(True, linestyle='--', alpha=0.7, axis='y')
     
     plt.tight_layout()
-    
-    output_file = os.path.join(output_dir, 'performance_bar_chart.png')
-    plt.savefig(output_file, dpi=300)
-    print(f"Saved bar chart comparison to {output_file}")
+    plt.savefig(os.path.join(output_dir, 'performance_bar_chart.png'), dpi=300)
     plt.close()
 
-def create_radar_chart(df, output_dir):
-    """Create radar chart comparing normalized performance metrics."""
-    # Choose the largest matrix size for the radar chart
-    largest_size_row = df.iloc[-1]
+def plot_cpu_scaling(cpu_df, output_dir):
+    """Plot performance scaling for CPU implementations."""
+    if cpu_df is None or cpu_df.empty:
+        return
     
-    # Categories for radar chart
-    categories = ['Execution\nSpeed', 'GFLOPS', 'OpenBLAS\nComparison', 'MKL\nComparison', 'cuBLAS\nComparison']
+    plt.figure(figsize=(12, 8))
     
-    # Values need to be normalized between 0 and 1, where 1 is best performance
-    # For execution time, lower is better so we invert the normalization
-    best_time = min(largest_size_row['Our Best (ms)'], largest_size_row['OpenBLAS (ms)'], 
-                    largest_size_row['Intel MKL (ms)'], largest_size_row['cuBLAS (ms)'])
+    matrix_sizes = cpu_df['Matrix Size'].values
     
-    # For GFLOPS, higher is better
-    max_gflops = max(largest_size_row['Our Best (GFLOPS)'], largest_size_row['OpenBLAS (GFLOPS)'], 
-                     largest_size_row['Intel MKL (GFLOPS)'], largest_size_row['cuBLAS (GFLOPS)'])
+    # Plot GFLOPS for each CPU implementation
+    if 'Naive (GFLOPS)' in cpu_df.columns:
+        plt.plot(matrix_sizes, cpu_df['Naive (GFLOPS)'], 'o-', color='gray', linewidth=2, 
+                 label='Naive')
     
-    # Normalized values
-    our_values = [
-        best_time / largest_size_row['Our Best (ms)'],
-        largest_size_row['Our Best (GFLOPS)'] / max_gflops,
-        largest_size_row['Percentage of OpenBLAS'] / 100,
-        largest_size_row['Percentage of Intel MKL'] / 100,
-        largest_size_row['Percentage of cuBLAS'] / 100
-    ]
+    if 'Blocked (GFLOPS)' in cpu_df.columns:
+        plt.plot(matrix_sizes, cpu_df['Blocked (GFLOPS)'], 's-', color='blue', linewidth=2, 
+                 label='Blocked')
     
-    openblas_values = [
-        best_time / largest_size_row['OpenBLAS (ms)'],
-        largest_size_row['OpenBLAS (GFLOPS)'] / max_gflops,
-        1.0,  # 100% of itself
-        largest_size_row['OpenBLAS (GFLOPS)'] / largest_size_row['Intel MKL (GFLOPS)'] if largest_size_row['Intel MKL (GFLOPS)'] > 0 else 0,
-        largest_size_row['OpenBLAS (GFLOPS)'] / largest_size_row['cuBLAS (GFLOPS)'] if largest_size_row['cuBLAS (GFLOPS)'] > 0 else 0
-    ]
+    if 'SIMD (GFLOPS)' in cpu_df.columns:
+        plt.plot(matrix_sizes, cpu_df['SIMD (GFLOPS)'], '^-', color='green', linewidth=2, 
+                 label='SIMD')
     
-    mkl_values = [
-        best_time / largest_size_row['Intel MKL (ms)'],
-        largest_size_row['Intel MKL (GFLOPS)'] / max_gflops,
-        largest_size_row['Intel MKL (GFLOPS)'] / largest_size_row['OpenBLAS (GFLOPS)'] if largest_size_row['OpenBLAS (GFLOPS)'] > 0 else 0,
-        1.0,  # 100% of itself
-        largest_size_row['Intel MKL (GFLOPS)'] / largest_size_row['cuBLAS (GFLOPS)'] if largest_size_row['cuBLAS (GFLOPS)'] > 0 else 0
-    ]
+    if 'Threaded (GFLOPS)' in cpu_df.columns:
+        plt.plot(matrix_sizes, cpu_df['Threaded (GFLOPS)'], 'D-', color='orange', linewidth=2, 
+                 label='Threaded')
     
-    cublas_values = [
-        best_time / largest_size_row['cuBLAS (ms)'],
-        largest_size_row['cuBLAS (GFLOPS)'] / max_gflops,
-        largest_size_row['cuBLAS (GFLOPS)'] / largest_size_row['OpenBLAS (GFLOPS)'] if largest_size_row['OpenBLAS (GFLOPS)'] > 0 else 0,
-        largest_size_row['cuBLAS (GFLOPS)'] / largest_size_row['Intel MKL (GFLOPS)'] if largest_size_row['Intel MKL (GFLOPS)'] > 0 else 0,
-        1.0  # 100% of itself
-    ]
+    if 'Combined (GFLOPS)' in cpu_df.columns:
+        plt.plot(matrix_sizes, cpu_df['Combined (GFLOPS)'], '*-', color='red', linewidth=2, 
+                 label='Combined (SIMD + Threaded)')
     
-    # Number of variables
-    N = len(categories)
+    plt.title('CPU Implementation Performance Scaling', fontsize=16)
+    plt.xlabel('Matrix Size (N×N)', fontsize=14)
+    plt.ylabel('Performance (GFLOPS)', fontsize=14)
+    plt.grid(True, linestyle='--', alpha=0.7)
+    plt.legend(fontsize=12)
     
-    # What will be the angle of each axis in the plot
-    angles = [n / float(N) * 2 * np.pi for n in range(N)]
-    angles += angles[:1]  # Close the loop
+    plt.xscale('log', base=2)
+    plt.yscale('log')
     
-    # Extend all values to close the loop
-    our_values += our_values[:1]
-    openblas_values += openblas_values[:1]
-    mkl_values += mkl_values[:1]
-    cublas_values += cublas_values[:1]
+    # Set x-axis to show actual matrix sizes
+    plt.xticks(matrix_sizes, [str(size) for size in matrix_sizes])
     
-    # Initialize the figure
-    fig = plt.figure(figsize=(10, 10))
-    ax = fig.add_subplot(111, polar=True)
-    
-    # Draw one axis per variable and add labels
-    plt.xticks(angles[:-1], categories, fontsize=12)
-    
-    # Draw the lines
-    ax.plot(angles, our_values, 'o-', linewidth=2, color='red', label='Our Algorithm')
-    ax.plot(angles, openblas_values, 's-', linewidth=2, color='purple', label='OpenBLAS')
-    ax.plot(angles, mkl_values, '^-', linewidth=2, color='blue', label='Intel MKL')
-    ax.plot(angles, cublas_values, 'D-', linewidth=2, color='green', label='cuBLAS')
-    
-    # Fill areas
-    ax.fill(angles, our_values, color='red', alpha=0.1)
-    ax.fill(angles, openblas_values, color='purple', alpha=0.1)
-    ax.fill(angles, mkl_values, color='blue', alpha=0.1)
-    ax.fill(angles, cublas_values, color='green', alpha=0.1)
-    
-    # Add title and legend
-    plt.title(f'Performance Comparison for {largest_size_row["Matrix Size"]}×{largest_size_row["Matrix Size"]} Matrix', fontsize=16)
-    plt.legend(loc='upper right', bbox_to_anchor=(0.1, 0.1))
-    
-    # Adjust the layout and save
     plt.tight_layout()
-    
-    output_file = os.path.join(output_dir, 'radar_chart_comparison.png')
-    plt.savefig(output_file, dpi=300)
-    print(f"Saved radar chart to {output_file}")
+    plt.savefig(os.path.join(output_dir, 'cpu_scaling.png'), dpi=300)
     plt.close()
 
-def generate_all_visualizations(input_file, output_dir):
-    """Generate all visualizations for the benchmark data."""
-    try:
-        df = read_benchmark_data(input_file)
-        
-        # Create output directory if it doesn't exist
-        create_directory_if_not_exists(output_dir)
-        
-        # Generate all plots
-        plot_execution_time(df, output_dir, log_scale=True)
-        plot_execution_time(df, output_dir, log_scale=False)
-        plot_gflops(df, output_dir)
-        plot_percentage_of_libraries(df, output_dir)
-        create_bar_chart(df, output_dir)
-        
-        if len(df) > 0:  # Only create radar chart if we have data
-            create_radar_chart(df, output_dir)
-        
-        print(f"All visualizations have been saved to {output_dir}")
-        
-    except Exception as e:
-        print(f"Error generating visualizations: {e}")
-        return False
+def plot_speedup_vs_naive(cpu_df, output_dir):
+    """Plot speedup relative to naive implementation."""
+    if cpu_df is None or cpu_df.empty:
+        return
     
-    return True
+    plt.figure(figsize=(12, 8))
+    
+    matrix_sizes = cpu_df['Matrix Size'].values
+    
+    # Plot speedup for each CPU implementation
+    if 'Speedup Blocked' in cpu_df.columns:
+        plt.plot(matrix_sizes, cpu_df['Speedup Blocked'], 's-', color='blue', linewidth=2, 
+                 label='Blocked vs Naive')
+    
+    if 'Speedup SIMD' in cpu_df.columns:
+        plt.plot(matrix_sizes, cpu_df['Speedup SIMD'], '^-', color='green', linewidth=2, 
+                 label='SIMD vs Naive')
+    
+    if 'Speedup Threaded' in cpu_df.columns:
+        plt.plot(matrix_sizes, cpu_df['Speedup Threaded'], 'D-', color='orange', linewidth=2, 
+                 label='Threaded vs Naive')
+    
+    if 'Speedup Combined' in cpu_df.columns:
+        plt.plot(matrix_sizes, cpu_df['Speedup Combined'], '*-', color='red', linewidth=2, 
+                 label='Combined vs Naive')
+    
+    plt.title('Speedup Relative to Naive Implementation', fontsize=16)
+    plt.xlabel('Matrix Size (N×N)', fontsize=14)
+    plt.ylabel('Speedup (X times faster)', fontsize=14)
+    plt.grid(True, linestyle='--', alpha=0.7)
+    plt.legend(fontsize=12)
+    
+    plt.xscale('log', base=2)
+    
+    # Set x-axis to show actual matrix sizes
+    plt.xticks(matrix_sizes, [str(size) for size in matrix_sizes])
+    
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_dir, 'speedup_vs_naive.png'), dpi=300)
+    plt.close()
 
 def main():
-    # Set up argument parser
-    parser = argparse.ArgumentParser(description='Generate visualizations from benchmark results.')
-    parser.add_argument('--input', default='library_comparison_results.csv', 
-                        help='Input CSV file with benchmark results')
-    parser.add_argument('--output-dir', default='../showcase/visualizations',
-                        help='Directory where visualizations will be saved')
+    parser = argparse.ArgumentParser(description='Visualize benchmark results')
+    parser.add_argument('--lib-results', type=str, default='library_comparison_results.csv',
+                      help='Path to library comparison results CSV file')
+    parser.add_argument('--cpu-results', type=str, default='cpu_benchmark_results.csv',
+                      help='Path to CPU benchmark results CSV file')
+    parser.add_argument('--output-dir', type=str, default='visualizations',
+                      help='Directory to save visualizations')
     
-    # Parse command line arguments
     args = parser.parse_args()
     
-    # Resolve relative paths
-    script_dir = os.path.dirname(os.path.abspath(__file__))
+    # Create output directory
+    create_directory(args.output_dir)
     
-    if not os.path.isabs(args.input):
-        input_file = os.path.join(script_dir, '..', 'data', 'results', args.input)
-    else:
-        input_file = args.input
+    # Process library comparison results
+    try:
+        lib_df = load_data(args.lib_results)
+        plot_gflops_comparison(lib_df, args.output_dir)
+        plot_execution_time(lib_df, args.output_dir)
+        plot_percentage_comparison(lib_df, args.output_dir)
+        create_bar_chart(lib_df, args.output_dir)
+        print(f"Library comparison visualizations saved to {args.output_dir}")
+    except FileNotFoundError as e:
+        print(f"Warning: {e}")
     
-    if not os.path.isabs(args.output_dir):
-        output_dir = os.path.join(script_dir, args.output_dir)
-    else:
-        output_dir = args.output_dir
+    # Process CPU benchmark results if available
+    try:
+        cpu_df = load_data(args.cpu_results)
+        plot_cpu_scaling(cpu_df, args.output_dir)
+        plot_speedup_vs_naive(cpu_df, args.output_dir)
+        print(f"CPU scaling visualizations saved to {args.output_dir}")
+    except FileNotFoundError as e:
+        print(f"Warning: {e}")
     
-    # Generate visualizations
-    result = generate_all_visualizations(input_file, output_dir)
-    
-    return 0 if result else 1
+    print("Visualization complete!")
 
 if __name__ == "__main__":
     main()
