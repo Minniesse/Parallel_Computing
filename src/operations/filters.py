@@ -87,7 +87,7 @@ class EdgeDetection(Operation):
         Initialize the edge detection filter.
         
         Args:
-            backend: One of "auto", "sequential", "vectorized", "multicore", "gpu"
+            backend: One of "auto", "sequential", "vectorized", "numba", "multicore", "gpu"
             tile_size: Size of tiles for parallel processing
         """
         super().__init__(name=f"EdgeDetection-{backend}")
@@ -115,7 +115,11 @@ class EdgeDetection(Operation):
                 import cupy
                 backend = "gpu"
             except ImportError:
-                backend = "vectorized"
+                try:
+                    import numba
+                    backend = "numba"
+                except ImportError:
+                    backend = "vectorized"
         
         # Create the implementation
         if backend == "sequential":
@@ -125,6 +129,10 @@ class EdgeDetection(Operation):
         elif backend == "vectorized":
             from ..cpu.vectorized import VectorizedEdgeDetection
             self._implementation = VectorizedEdgeDetection()
+        
+        elif backend == "numba":
+            from ..cpu.vectorized import NumbaEdgeDetection
+            self._implementation = NumbaEdgeDetection()
         
         elif backend == "multicore":
             from ..cpu.multicore import MultiCoreEdgeDetection

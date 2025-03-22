@@ -112,6 +112,62 @@ class VectorizedEdgeDetection(Operation):
         
         return gradient
 
+class NumbaEdgeDetection(Operation):
+    """
+    Edge detection implementation using Numba JIT compilation.
+    """
+    
+    def __init__(self):
+        super().__init__(name="NumbaEdgeDetection")
+        # Sobel operators for edge detection
+        self.kernel_x = np.array([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]])
+        self.kernel_y = np.array([[-1, -2, -1], [0, 0, 0], [1, 2, 1]])
+    
+    def _process(self, image: np.ndarray, **kwargs) -> np.ndarray:
+        """Apply edge detection filter using Numba acceleration."""
+        # Convert to grayscale if needed
+        if len(image.shape) == 3:
+            gray = np.mean(image, axis=2).astype(np.float32)
+        else:
+            gray = image.astype(np.float32)
+        
+        # Apply Sobel operators using Numba
+        grad_x, grad_y = _numba_apply_sobel(gray, self.kernel_x, self.kernel_y)
+        
+        # Compute gradient magnitude
+        gradient = np.sqrt(grad_x**2 + grad_y**2)
+        
+        # Normalize to 0-255 range
+        gradient = np.clip(gradient, 0, 255).astype(np.uint8)
+        
+        return gradient
+
+@numba.jit(nopython=True, parallel=True)
+def _numba_apply_sobel(image, kernel_x, kernel_y):
+    """Apply Sobel operators using Numba."""
+    height, width = image.shape
+    grad_x = np.zeros_like(image)
+    grad_y = np.zeros_like(image)
+    
+    # Apply Sobel operators
+    for i in numba.prange(1, height-1):
+        for j in range(1, width-1):
+            # Apply horizontal kernel
+            sumx = 0.0
+            for ki in range(3):
+                for kj in range(3):
+                    sumx += image[i+ki-1, j+kj-1] * kernel_x[ki, kj]
+            grad_x[i, j] = sumx
+            
+            # Apply vertical kernel
+            sumy = 0.0
+            for ki in range(3):
+                for kj in range(3):
+                    sumy += image[i+ki-1, j+kj-1] * kernel_y[ki, kj]
+            grad_y[i, j] = sumy
+    
+    return grad_x, grad_y
+
 class VectorizedColorTransform(Operation):
     """
     Vectorized implementation of color transformations using NumPy.

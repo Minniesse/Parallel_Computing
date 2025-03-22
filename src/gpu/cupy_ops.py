@@ -82,14 +82,31 @@ class GPUEdgeDetection(GPUOperation):
         else:
             gray = gpu_image.astype(cp.float32)
         
-        # Compute gradients
-        grad_x = cp.pad(cp.correlate(gray, self.gpu_kernel_x, mode='valid'), 1)
-        grad_y = cp.pad(cp.correlate(gray, self.gpu_kernel_y, mode='valid'), 1)
+        # Manual computation of gradients using basic operations
+        grad_x = cp.zeros_like(gray)
+        grad_y = cp.zeros_like(gray)
+        
+        # Apply the Sobel operators manually using array slicing
+        grad_x[1:-1, 1:-1] = (
+            -1 * gray[0:-2, 0:-2] + 0 * gray[0:-2, 1:-1] + 1 * gray[0:-2, 2:] +
+            -2 * gray[1:-1, 0:-2] + 0 * gray[1:-1, 1:-1] + 2 * gray[1:-1, 2:] +
+            -1 * gray[2:, 0:-2] + 0 * gray[2:, 1:-1] + 1 * gray[2:, 2:]
+        ) / 8.0
+        
+        grad_y[1:-1, 1:-1] = (
+            -1 * gray[0:-2, 0:-2] + -2 * gray[0:-2, 1:-1] + -1 * gray[0:-2, 2:] +
+             0 * gray[1:-1, 0:-2] +  0 * gray[1:-1, 1:-1] +  0 * gray[1:-1, 2:] +
+             1 * gray[2:, 0:-2] +  2 * gray[2:, 1:-1] +  1 * gray[2:, 2:]
+        ) / 8.0
         
         # Compute gradient magnitude
         gradient = cp.sqrt(grad_x**2 + grad_y**2)
         
         # Normalize to 0-255 range
+        max_val = cp.max(gradient)
+        if max_val > 0:
+            gradient = gradient * (255.0 / max_val)
+        
         return cp.clip(gradient, 0, 255).astype(cp.uint8)
 
 class GPUColorTransform(GPUOperation):
