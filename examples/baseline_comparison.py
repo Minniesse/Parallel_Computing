@@ -235,9 +235,27 @@ def run_optimized(model, input_data, warmup=5, iterations=20, is_huggingface=Fal
 def compare_models(models, batch_sizes, warmup=5, iterations=20):
     """Compare baseline vs optimized for different models and batch sizes"""
     results = {}
+    memory_analysis_results = {}  # Store memory analysis for summary report
     
-    # Load device catalog to get GPU information
-    device_catalog = DeviceCatalog(cache_file="./cache/device_info.json")
+    # ANSI color codes for terminal output
+    GREEN = "\033[92m"
+    YELLOW = "\033[93m"
+    RED = "\033[91m"
+    RESET = "\033[0m"
+    BOLD = "\033[1m"
+    
+    # Load device catalog to get GPU information - force fresh detection
+    # First, try to remove any cached device information
+    cache_path = "./cache/device_info.json"
+    if os.path.exists(cache_path):
+        try:
+            os.remove(cache_path)
+            print("Cleared cached device information to ensure fresh detection")
+        except:
+            print("Warning: Unable to clear cached device information")
+    
+    # Create device catalog with fresh detection
+    device_catalog = DeviceCatalog(cache_file=cache_path)
     
     for model_name, model_info in models.items():
         results[model_name] = {}
@@ -297,6 +315,7 @@ def compare_models(models, batch_sizes, warmup=5, iterations=20):
         print(f"{'Batch Size':<10} {'Params (MB)':<12} {'Activations (MB)':<16} {'Total (GB)':<10} {'Status':<10}")
         
         memory_limited_batch = float('inf')
+        memory_requirements = {}  # Store memory requirements for each batch size
         
         for bs in batch_sizes:
             # Skip batch size analysis if no GPU
@@ -310,13 +329,32 @@ def compare_models(models, batch_sizes, warmup=5, iterations=20):
             total_gb = mem_est['total'] / (1024 ** 3)
             
             status = "OK"
-            if mem_est['total'] > available_gpu_memory * 0.9:
+            color = GREEN
+            if mem_est['total'] > available_gpu_memory:
+                status = "OOM"
+                color = RED
+                memory_limited_batch = min(memory_limited_batch, bs)
+            elif mem_est['total'] > available_gpu_memory * 0.9:
                 status = "RISK-OOM"
+                color = YELLOW
                 memory_limited_batch = min(memory_limited_batch, bs)
             elif mem_est['total'] > available_gpu_memory * 0.8:
                 status = "CAUTION"
+                color = YELLOW
             
-            print(f"{bs:<10} {param_mb:<12.2f} {act_mb:<16.2f} {total_gb:<10.2f} {status:<10}")
+            memory_requirements[bs] = {
+                'param_mb': param_mb,
+                'act_mb': act_mb,
+                'total_gb': total_gb,
+                'status': status,
+                'color': color
+            }
+            
+            print(f"{bs:<10} {param_mb:<12.2f} {act_mb:<16.2f} {total_gb:<10.2f} {color}{status}{RESET}")
+        
+        # Store memory analysis information for summary report
+        max_bs = 0
+        memory_tips = []
         
         # Calculate recommended batch size
         if available_gpu_memory > 0:
@@ -330,11 +368,11 @@ def compare_models(models, batch_sizes, warmup=5, iterations=20):
             
             if max_bs == 0:
                 print("\n⚠️ WARNING: This model is too large to fit even batch size 1 in GPU memory!")
-                print("Memory optimization tips:")
-                print("- Use model parallelism or pipeline parallelism to split the model across multiple GPUs")
-                print("- Try mixed precision training (torch.cuda.amp) to reduce memory by almost 50%")
-                print("- Consider using a smaller model or model pruning techniques")
-                print("- Use gradient checkpointing to trade computation for memory")
+                memory_tips.append("- Model too large to fit in GPU memory with batch size 1")
+                memory_tips.append("- Use model parallelism or pipeline parallelism to split the model across multiple GPUs")
+                memory_tips.append("- Try mixed precision training (torch.cuda.amp) to reduce memory by almost 50%")
+                memory_tips.append("- Consider using a smaller model or model pruning techniques")
+                memory_tips.append("- Use gradient checkpointing to trade computation for memory")
             else:
                 print(f"\nRecommended maximum batch size: {max_bs}")
                 
@@ -342,16 +380,35 @@ def compare_models(models, batch_sizes, warmup=5, iterations=20):
                 print("\nMemory optimization tips:")
                 if max_bs < min(batch_sizes):
                     print(f"- ⚠️ Requested batch sizes exceed GPU memory capacity")
+                    memory_tips.append(f"- Requested batch sizes exceed GPU memory capacity")
                     print(f"- Consider using gradient accumulation instead of large batch sizes")
+                    memory_tips.append(f"- Consider using gradient accumulation instead of large batch sizes")
                     print(f"- Try mixed precision training (torch.cuda.amp) to reduce memory usage by ~50%")
+                    memory_tips.append(f"- Try mixed precision training (torch.cuda.amp) to reduce memory usage by ~50%")
                     print(f"- Model checkpoint/activation recomputation can save memory at the cost of computation")
+                    memory_tips.append(f"- Model checkpoint/activation recomputation can save memory at the cost of computation")
                 elif memory_limited_batch < float('inf'):
                     print(f"- ⚠️ Batch size {memory_limited_batch} and above may cause OOM errors")
+                    memory_tips.append(f"- Batch size {memory_limited_batch} and above may cause OOM errors")
                     print(f"- Consider using gradient accumulation for effective batch sizes > {max_bs}")
+                    memory_tips.append(f"- Consider using gradient accumulation for effective batch sizes > {max_bs}")
                     print(f"- For {model_name}, mixed precision training can increase max batch size to ~{int(max_bs * 1.7)}")
+                    memory_tips.append(f"- For {model_name}, mixed precision training can increase max batch size to ~{int(max_bs * 1.7)}")
                 else:
                     print(f"- All requested batch sizes should fit within GPU memory")
+                    memory_tips.append(f"- All requested batch sizes should fit within GPU memory")
                     print(f"- For large-scale training, consider gradient accumulation or distributed training")
+                    memory_tips.append(f"- For large-scale training, consider gradient accumulation or distributed training")
+        
+        # Store memory analysis results
+        memory_analysis_results[model_name] = {
+            'gpu_name': gpu_name,
+            'gpu_vram_gb': available_gpu_memory / (1024 ** 3) if available_gpu_memory > 0 else 0,
+            'param_count': param_count,
+            'max_batch_size': max_bs,
+            'memory_requirements': memory_requirements,
+            'memory_tips': memory_tips
+        }
 
         # Run benchmarks for each batch size
         for batch_size in batch_sizes:
@@ -463,7 +520,7 @@ def compare_models(models, batch_sizes, warmup=5, iterations=20):
                 else:
                     print(f"\n❌ ERROR: {str(e)}")
     
-    return results
+    return results, memory_analysis_results
 
 def generate_summary_plots(results, batch_sizes):
     """Generate summary plots comparing all models and batch sizes"""
@@ -623,6 +680,16 @@ def main():
     # Create output directory
     os.makedirs("./comparison_results", exist_ok=True)
     
+    # Create cache directory if needed
+    os.makedirs("./cache", exist_ok=True)
+    
+    # ANSI color codes for terminal output
+    GREEN = "\033[92m"
+    YELLOW = "\033[93m"
+    RED = "\033[91m"
+    RESET = "\033[0m"
+    BOLD = "\033[1m"
+    
     # Load HuggingFace model and tokenizer
     try:
         print("Loading HuggingFace transformer model...")
@@ -706,26 +773,62 @@ def main():
             print("Invalid input, using default batch sizes")
     
     # Run comparison
-    results = compare_models(selected_models, batch_sizes)
+    results, memory_analysis_results = compare_models(selected_models, batch_sizes)
     
     # Generate summary visualizations and analysis
     generate_summary_plots(results, batch_sizes)
     
-    # Summary report with performance notes
+    # Summary report with performance notes and memory analysis
     print("\n============== SUMMARY REPORT ==============")
     for model_name in results:
         model_info = models.get(model_name, {})
         perf_note = model_info.get('performance_note', '')
         
-        print(f"\n{model_name}:")
+        print(f"\n{BOLD}{model_name}{RESET}:")
         print(f"  {perf_note}")
         
+        # Print speedup results
+        speedups = []
         for batch_size, res in results[model_name].items():
             speedup = res['baseline']['mean'] / res['optimized']['mean']
+            speedups.append((batch_size, speedup))
             print(f"  Batch size {batch_size}: {speedup:.2f}x speedup")
             if speedup < 1.0:
                 overhead = ((res['optimized']['mean'] - res['baseline']['mean']) / res['baseline']['mean']) * 100
                 print(f"    ⚠️ Framework overhead: {overhead:.1f}% (normal for small workloads)")
+        
+        # Print memory analysis summary if available
+        memory_analysis = memory_analysis_results.get(model_name, {})
+        if memory_analysis:
+            print(f"\n  {BOLD}Memory Analysis:{RESET}")
+            gpu_name = memory_analysis.get('gpu_name', 'Unknown GPU')
+            gpu_vram = memory_analysis.get('gpu_vram_gb', 0)
+            if gpu_vram > 0:
+                print(f"  GPU: {gpu_name} with {gpu_vram:.2f} GB VRAM")
+            
+            param_count = memory_analysis.get('param_count', 0)
+            print(f"  Model parameters: {param_count:,}")
+            
+            max_bs = memory_analysis.get('max_batch_size', 0)
+            if max_bs > 0:
+                print(f"  Recommended maximum batch size: {max_bs}")
+            
+            # Print memory requirements table with color coding
+            mem_reqs = memory_analysis.get('memory_requirements', {})
+            if mem_reqs:
+                print("\n  Memory requirements by batch size:")
+                print(f"  {'Batch Size':<10} {'Params (MB)':<12} {'Activations (MB)':<16} {'Total (GB)':<10} {'Status':<10}")
+                for bs in sorted(mem_reqs.keys()):
+                    req = mem_reqs[bs]
+                    color = req.get('color', RESET)
+                    status = req.get('status', '')
+                    print(f"  {bs:<10} {req['param_mb']:<12.2f} {req['act_mb']:<16.2f} {req['total_gb']:<10.2f} {color}{status}{RESET}")
+            
+            # Print memory optimization tips
+            if memory_analysis.get('memory_tips'):
+                print(f"\n  {BOLD}Memory optimization tips:{RESET}")
+                for tip in memory_analysis.get('memory_tips', []):
+                    print(f"  {tip}")
     
     print("\nDetailed results saved to ./comparison_results/")
     print("Summary analysis available at ./comparison_results/summary/")
