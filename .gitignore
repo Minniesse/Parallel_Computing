@@ -1,2 +1,38 @@
-build
-venv
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Virtual environments
+venv/
+env/
+.env/
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Test images and outputs
+test_image.png
+output/
+benchmark_results.csv
+*.png
+*.jpg
+*.jpeg
+
+# Jupyter notebooks
+.ipynb_checkpoints/
+*.ipynb
+
+# Profiling files
+*.prof
+*.lprof
+```
