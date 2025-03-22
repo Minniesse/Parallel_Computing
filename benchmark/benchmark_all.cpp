@@ -375,7 +375,7 @@ int main(int argc, char* argv[]) {
     AllBenchmarkConfig config;
     
     // Default configuration
-    config.matrixSizes = {128, 256, 512, 1024};
+    config.matrixSizes = {128, 256, 512};
     config.repetitions = 5;
     config.runCPU = true;
     config.runGPU = true;

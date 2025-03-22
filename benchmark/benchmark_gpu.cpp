@@ -188,7 +188,7 @@ int main(int argc, char* argv[]) {
     BenchmarkConfig config;
     
     // Default configuration
-    config.matrixSizes = {128, 256, 512, 1024};
+    config.matrixSizes = {128, 256, 512};
     config.repetitions = 10;
     config.compareToCuBLAS = true;
     config.useTensorCores = true;
