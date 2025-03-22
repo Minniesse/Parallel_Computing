@@ -75,6 +75,8 @@ class GaussianBlur(Operation):
         
         else:
             raise ValueError(f"Unknown backend: {backend}")
+        
+        print(f"Using {self._implementation.name}")
 
 class EdgeDetection(Operation):
     """
@@ -144,3 +146,5 @@ class EdgeDetection(Operation):
         
         else:
             raise ValueError(f"Unknown backend: {backend}")
+        
+        print(f"Using {self._implementation.name}")
