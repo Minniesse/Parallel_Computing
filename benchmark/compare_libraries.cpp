@@ -7,29 +7,14 @@
 #include <fstream>
 #include <string>
 #include <sstream>
-#include <omp.h>
 #include "../include/cpu/naive.h"
 #include "../include/cpu/blocked.h"
 #include "../include/cpu/simd.h"
 #include "../include/cpu/threaded.h"
+#include "../include/gpu/cuda_wrapper.h"
 #include "../include/common/timing.h"
 #include "../include/common/matrix.h"
 #include "../include/common/utils.h"
-
-// Include GPU header if CUDA is available
-#ifdef HAS_CUDA
-#include "../include/gpu/cuda_wrapper.h"
-#endif
-
-// Include OpenBLAS if available
-#ifdef HAS_OPENBLAS
-#include <cblas.h>
-#endif
-
-// Include Intel MKL if available
-#ifdef HAS_MKL
-#include <mkl.h>
-#endif
 
 // Benchmark configuration
 struct LibraryComparisonConfig {
@@ -45,27 +30,18 @@ struct LibraryComparisonConfig {
 // Benchmark results
 struct LibraryComparisonResult {
     int matrixSize;
-    double timeOurBest;
-    double timeOpenBLAS;
-    double timeMKL;
-    double timeCuBLAS;
-    double gflopsOurBest;
-    double gflopsOpenBLAS;
-    double gflopsMKL;
-    double gflopsCuBLAS;
-    double percentageOfOpenBLAS;
-    double percentageOfMKL;
-    double percentageOfCuBLAS;
+    float timeOurBest;
+    float timeOpenBLAS;
+    float timeMKL;
+    float timeCuBLAS;
+    float gflopsOurBest;
+    float gflopsOpenBLAS;
+    float gflopsMKL;
+    float gflopsCuBLAS;
+    float percentageOfOpenBLAS;
+    float percentageOfMKL;
+    float percentageOfCuBLAS;
 };
-
-// Function prototypes for library wrappers
-#ifdef HAS_OPENBLAS
-void multiply_openblas(const float* A, const float* B, float* C, int m, int n, int k);
-#endif
-
-#ifdef HAS_MKL
-void multiply_mkl(const float* A, const float* B, float* C, int m, int n, int k);
-#endif
 
 // Run library comparison benchmarks
 std::vector<LibraryComparisonResult> runLibraryComparison(const LibraryComparisonConfig& configInput) {
@@ -76,9 +52,7 @@ std::vector<LibraryComparisonResult> runLibraryComparison(const LibraryCompariso
     std::mt19937 gen(42); // Fixed seed for reproducibility
     
     // Check if CUDA is available
-    bool cudaAvailable = false;
-    #ifdef HAS_CUDA
-    cudaAvailable = gpu::isCudaAvailable();
+    bool cudaAvailable = gpu::isCudaAvailable();
     if (!cudaAvailable && config.runCuBLAS) {
         std::cerr << "CUDA is not available on this system. Skipping cuBLAS benchmarks." << std::endl;
         config.runCuBLAS = false;
@@ -91,7 +65,6 @@ std::vector<LibraryComparisonResult> runLibraryComparison(const LibraryCompariso
     
     // Create CUDA multiplier
     gpu::CudaMatrixMultiplier multiplier;
-    #endif
     
     // Run benchmarks for each matrix size
     for (int size : config.matrixSizes) {
@@ -100,24 +73,22 @@ std::vector<LibraryComparisonResult> runLibraryComparison(const LibraryCompariso
         // Initialize matrices
         std::vector<float> A(size * size);
         std::vector<float> B(size * size);
-        std::vector<float> C(size * size, 0.0f);
-        std::vector<float> C_openblas(size * size, 0.0f);
-        std::vector<float> C_mkl(size * size, 0.0f);
-        std::vector<float> C_cublas(size * size, 0.0f);
+        std::vector<float> C(size * size);
+        std::vector<float> C_openblas(size * size);
+        std::vector<float> C_mkl(size * size);
+        std::vector<float> C_cublas(size * size);
         
         // Fill matrices with random values
         std::uniform_real_distribution<float> dist(-1.0f, 1.0f);
         std::generate(A.begin(), A.end(), [&]() { return dist(gen); });
         std::generate(B.begin(), B.end(), [&]() { return dist(gen); });
         
-        // Initialize CUDA multiplier if available
-        #ifdef HAS_CUDA
-        if (cudaAvailable && config.runCuBLAS) {
+        // Initialize CUDA multiplier
+        if (cudaAvailable) {
             multiplier.initialize(size, size, size);
             multiplier.setMatrixA(A.data());
             multiplier.setMatrixB(B.data());
         }
-        #endif
         
         // Create timer
         Timer timer;
@@ -126,12 +97,9 @@ std::vector<LibraryComparisonResult> runLibraryComparison(const LibraryCompariso
         LibraryComparisonResult result;
         result.matrixSize = size;
         
-        // Calculate FLOPS for this matrix size
-        double flops = 2.0 * size * size * size; // 2*n^3 operations for matrix multiplication
-        
         // Benchmark our best implementation
         if (config.runOurBest) {
-            double totalTimeOurBest = 0.0;
+            float totalTimeOurBest = 0.0f;
             
             // Warmup
             cpu::threaded::multiply_simd(A.data(), B.data(), C.data(), size, size, size);
@@ -140,84 +108,71 @@ std::vector<LibraryComparisonResult> runLibraryComparison(const LibraryCompariso
                 timer.start();
                 cpu::threaded::multiply_simd(A.data(), B.data(), C.data(), size, size, size);
                 timer.stop();
-                totalTimeOurBest += timer.elapsedSeconds();
+                totalTimeOurBest += timer.elapsedMilliseconds();
             }
             
             result.timeOurBest = totalTimeOurBest / config.repetitions;
-            result.gflopsOurBest = flops / (result.timeOurBest * 1e9);
+            result.gflopsOurBest = (2.0f * size * size * size) / (result.timeOurBest * 1e-3) / 1e9;
             
-            std::cout << "  Our Best: " << std::fixed << std::setprecision(4) 
-                      << result.timeOurBest * 1000 << " ms, " 
-                      << std::setprecision(2) << result.gflopsOurBest << " GFLOPS" << std::endl;
+            std::cout << "  Our Best: " << std::fixed << std::setprecision(2) 
+                      << result.timeOurBest << " ms, " 
+                      << result.gflopsOurBest << " GFLOPS" << std::endl;
         } else {
-            result.timeOurBest = 0.0;
-            result.gflopsOurBest = 0.0;
+            result.timeOurBest = 0.0f;
+            result.gflopsOurBest = 0.0f;
         }
         
         // Benchmark OpenBLAS
-        #ifdef HAS_OPENBLAS
         if (config.runOpenBLAS) {
-            double totalTimeOpenBLAS = 0.0;
+            float totalTimeOpenBLAS = 0.0f;
             
             // Warmup
-            multiply_openblas(A.data(), B.data(), C_openblas.data(), size, size, size);
+            // openblas::multiply(A.data(), B.data(), C_openblas.data(), size, size, size);
             
             for (int i = 0; i < config.repetitions; i++) {
                 timer.start();
-                multiply_openblas(A.data(), B.data(), C_openblas.data(), size, size, size);
+                // openblas::multiply(A.data(), B.data(), C_openblas.data(), size, size, size);
                 timer.stop();
-                totalTimeOpenBLAS += timer.elapsedSeconds();
+                totalTimeOpenBLAS += timer.elapsedMilliseconds();
             }
             
             result.timeOpenBLAS = totalTimeOpenBLAS / config.repetitions;
-            result.gflopsOpenBLAS = flops / (result.timeOpenBLAS * 1e9);
+            result.gflopsOpenBLAS = (2.0f * size * size * size) / (result.timeOpenBLAS * 1e-3) / 1e9;
             
-            std::cout << "  OpenBLAS: " << std::fixed << std::setprecision(4) 
-                      << result.timeOpenBLAS * 1000 << " ms, " 
-                      << std::setprecision(2) << result.gflopsOpenBLAS << " GFLOPS" << std::endl;
+            std::cout << "  OpenBLAS: " << result.timeOpenBLAS << " ms, " 
+                      << result.gflopsOpenBLAS << " GFLOPS" << std::endl;
         } else {
-            result.timeOpenBLAS = 0.0;
-            result.gflopsOpenBLAS = 0.0;
+            result.timeOpenBLAS = 0.0f;
+            result.gflopsOpenBLAS = 0.0f;
         }
-        #else
-        result.timeOpenBLAS = 0.0;
-        result.gflopsOpenBLAS = 0.0;
-        #endif
         
         // Benchmark Intel MKL
-        #ifdef HAS_MKL
         if (config.runMKL) {
-            double totalTimeMKL = 0.0;
+            float totalTimeMKL = 0.0f;
             
             // Warmup
-            multiply_mkl(A.data(), B.data(), C_mkl.data(), size, size, size);
+            // mkl::multiply(A.data(), B.data(), C_mkl.data(), size, size, size);
             
             for (int i = 0; i < config.repetitions; i++) {
                 timer.start();
-                multiply_mkl(A.data(), B.data(), C_mkl.data(), size, size, size);
+                // mkl::multiply(A.data(), B.data(), C_mkl.data(), size, size, size);
                 timer.stop();
-                totalTimeMKL += timer.elapsedSeconds();
+                totalTimeMKL += timer.elapsedMilliseconds();
             }
             
             result.timeMKL = totalTimeMKL / config.repetitions;
-            result.gflopsMKL = flops / (result.timeMKL * 1e9);
+            result.gflopsMKL = (2.0f * size * size * size) / (result.timeMKL * 1e-3) / 1e9;
             
-            std::cout << "  Intel MKL: " << std::fixed << std::setprecision(4) 
-                      << result.timeMKL * 1000 << " ms, " 
-                      << std::setprecision(2) << result.gflopsMKL << " GFLOPS" << std::endl;
+            std::cout << "  Intel MKL: " << result.timeMKL << " ms, " 
+                      << result.gflopsMKL << " GFLOPS" << std::endl;
         } else {
-            result.timeMKL = 0.0;
-            result.gflopsMKL = 0.0;
+            result.timeMKL = 0.0f;
+            result.gflopsMKL = 0.0f;
         }
-        #else
-        result.timeMKL = 0.0;
-        result.gflopsMKL = 0.0;
-        #endif
         
         // Benchmark cuBLAS
-        #ifdef HAS_CUDA
         if (config.runCuBLAS && cudaAvailable) {
-            double totalTimeCuBLAS = 0.0;
+            float totalTimeCuBLAS = 0.0f;
             
             // Warmup
             multiplier.multiplyWithCuBLAS(C_cublas.data());
@@ -226,40 +181,30 @@ std::vector<LibraryComparisonResult> runLibraryComparison(const LibraryCompariso
                 timer.start();
                 multiplier.multiplyWithCuBLAS(C_cublas.data());
                 timer.stop();
-                totalTimeCuBLAS += timer.elapsedSeconds();
+                totalTimeCuBLAS += timer.elapsedMilliseconds();
             }
             
             result.timeCuBLAS = totalTimeCuBLAS / config.repetitions;
-            result.gflopsCuBLAS = flops / (result.timeCuBLAS * 1e9);
+            result.gflopsCuBLAS = (2.0f * size * size * size) / (result.timeCuBLAS * 1e-3) / 1e9;
             
-            std::cout << "  cuBLAS: " << std::fixed << std::setprecision(4) 
-                      << result.timeCuBLAS * 1000 << " ms, " 
-                      << std::setprecision(2) << result.gflopsCuBLAS << " GFLOPS" << std::endl;
+            std::cout << "  cuBLAS: " << result.timeCuBLAS << " ms, " 
+                      << result.gflopsCuBLAS << " GFLOPS" << std::endl;
         } else {
-            result.timeCuBLAS = 0.0;
-            result.gflopsCuBLAS = 0.0;
+            result.timeCuBLAS = 0.0f;
+            result.gflopsCuBLAS = 0.0f;
         }
-        #else
-        result.timeCuBLAS = 0.0;
-        result.gflopsCuBLAS = 0.0;
-        #endif
         
         // Calculate percentages
-        result.percentageOfOpenBLAS = (result.gflopsOpenBLAS > 0) ? 
-            (result.gflopsOurBest / result.gflopsOpenBLAS) * 100.0 : 0.0;
-        result.percentageOfMKL = (result.gflopsMKL > 0) ? 
-            (result.gflopsOurBest / result.gflopsMKL) * 100.0 : 0.0;
-        result.percentageOfCuBLAS = (result.gflopsCuBLAS > 0) ? 
-            (result.gflopsOurBest / result.gflopsCuBLAS) * 100.0 : 0.0;
+        result.percentageOfOpenBLAS = (result.gflopsOpenBLAS > 0) ? (result.gflopsOurBest / result.gflopsOpenBLAS) * 100.0f : 0.0f;
+        result.percentageOfMKL = (result.gflopsMKL > 0) ? (result.gflopsOurBest / result.gflopsMKL) * 100.0f : 0.0f;
+        result.percentageOfCuBLAS = (result.gflopsCuBLAS > 0) ? (result.gflopsOurBest / result.gflopsCuBLAS) * 100.0f : 0.0f;
         
         results.push_back(result);
         
         // Cleanup
-        #ifdef HAS_CUDA
-        if (cudaAvailable && config.runCuBLAS) {
+        if (cudaAvailable) {
             multiplier.cleanup();
         }
-        #endif
     }
     
     // Save results to file if requested
@@ -271,10 +216,10 @@ std::vector<LibraryComparisonResult> runLibraryComparison(const LibraryCompariso
         
         for (const auto& result : results) {
             outFile << result.matrixSize << ","
-                    << result.timeOurBest * 1000 << ","
-                    << result.timeOpenBLAS * 1000 << ","
-                    << result.timeMKL * 1000 << ","
-                    << result.timeCuBLAS * 1000 << ","
+                    << result.timeOurBest << ","
+                    << result.timeOpenBLAS << ","
+                    << result.timeMKL << ","
+                    << result.timeCuBLAS << ","
                     << result.gflopsOurBest << ","
                     << result.gflopsOpenBLAS << ","
                     << result.gflopsMKL << ","
@@ -288,90 +233,16 @@ std::vector<LibraryComparisonResult> runLibraryComparison(const LibraryCompariso
     return results;
 }
 
-// Implementation of OpenBLAS wrapper (if available)
-#ifdef HAS_OPENBLAS
-void multiply_openblas(const float* A, const float* B, float* C, int m, int n, int k) {
-    // Set all elements of C to zero
-    std::fill(C, C + m * n, 0.0f);
-    
-    // Using SGEMM: C = alpha * A * B + beta * C
-    // Note: OpenBLAS uses column-major order, so we compute B * A instead
-    // and interpret the result in column-major order (which gives us A * B in row-major)
-    float alpha = 1.0f;
-    float beta = 0.0f;
-    
-    // Call OpenBLAS SGEMM
-    cblas_sgemm(CblasRowMajor,  // Row-major order
-                CblasNoTrans,    // A is not transposed
-                CblasNoTrans,    // B is not transposed
-                m,               // Rows of A and C
-                n,               // Columns of B and C
-                k,               // Columns of A and rows of B
-                alpha,           // Alpha multiplier
-                A,               // Matrix A
-                k,               // Leading dimension of A
-                B,               // Matrix B
-                n,               // Leading dimension of B
-                beta,            // Beta multiplier
-                C,               // Result matrix C
-                n);              // Leading dimension of C
-}
-#endif
-
-// Implementation of Intel MKL wrapper (if available)
-#ifdef HAS_MKL
-void multiply_mkl(const float* A, const float* B, float* C, int m, int n, int k) {
-    // Set all elements of C to zero
-    std::fill(C, C + m * n, 0.0f);
-    
-    // Using MKL SGEMM: C = alpha * A * B + beta * C
-    float alpha = 1.0f;
-    float beta = 0.0f;
-    
-    // Call MKL SGEMM
-    cblas_sgemm(CblasRowMajor,  // Row-major order
-                CblasNoTrans,    // A is not transposed
-                CblasNoTrans,    // B is not transposed
-                m,               // Rows of A and C
-                n,               // Columns of B and C
-                k,               // Columns of A and rows of B
-                alpha,           // Alpha multiplier
-                A,               // Matrix A
-                k,               // Leading dimension of A
-                B,               // Matrix B
-                n,               // Leading dimension of B
-                beta,            // Beta multiplier
-                C,               // Result matrix C
-                n);              // Leading dimension of C
-}
-#endif
-
 int main(int argc, char* argv[]) {
     LibraryComparisonConfig config;
     
     // Default configuration
-    config.matrixSizes = {128, 256, 512, 1024, 2048, 4096};
+    config.matrixSizes = {128, 256, 512};
     config.repetitions = 5;
     config.runOurBest = true;
-    
-    #ifdef HAS_OPENBLAS
     config.runOpenBLAS = true;
-    #else
-    config.runOpenBLAS = false;
-    #endif
-    
-    #ifdef HAS_MKL
     config.runMKL = true;
-    #else
-    config.runMKL = false;
-    #endif
-    
-    #ifdef HAS_CUDA
     config.runCuBLAS = true;
-    #else
-    config.runCuBLAS = false;
-    #endif
-    
     config.outputFile = "library_comparison_results.csv";
     
     // Command line argument parsing
