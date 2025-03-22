@@ -1,0 +1,30 @@
+{
+  "cpus": [
+    {
+      "name": "x86_64",
+      "architecture": "x86_64",
+      "cores_physical": 24,
+      "cores_logical": 32,
+      "frequency_max": 4937.5,
+      "memory_total": 33407172608,
+      "supports_avx": true,
+      "supports_avx2": true,
+      "supports_avx512": false
+    }
+  ],
+  "gpus": [
+    {
+      "name": "NVIDIA GeForce RTX 4070 Ti",
+      "index": 0,
+      "uuid": "GPU-0",
+      "memory_total": 12584419328,
+      "compute_capability": "8.9",
+      "core_count": 60,
+      "memory_bus_width": 0,
+      "max_power_limit": 285000,
+      "supports_tensor_cores": true,
+      "pcie_generation": 4,
+      "pcie_link_width": 16
+    }
+  ]
+}

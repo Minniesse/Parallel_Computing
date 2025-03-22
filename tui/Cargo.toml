@@ -1,0 +1,31 @@
+[package]
+name = "parallel-opt-tui"
+version = "0.1.0"
+edition = "2021"
+description = "A TUI for monitoring and tuning the Parallelism Optimization Framework"
+authors = ["CMKL Team"]
+
+[dependencies]
+ratatui = "0.23.0"
+crossterm = "0.27.0"
+tokio = { version = "1.28.2", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+anyhow = "1.0"
+thiserror = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4.3.0", features = ["derive"] }
+tui-widget-list = "0.2.0"
+rand = "0.8"  # For demo data generation
+reqwest = { version = "0.11", features = ["json", "blocking"] }
+itertools = "0.11.0"
+bytesize = "1.2.0"
+strum = { version = "0.25", features = ["derive"] }
+strum_macros = "0.25"
+python-parser = "0.2.0"   # For Python communication
+unicode-width = "0.1.10"
+tui-logger = "0.9.5"
+
+[dependencies.openssl-sys]
+version = "0.9.106"
+features = ["vendored"]

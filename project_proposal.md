@@ -27,7 +27,7 @@ There is a critical need for automated tools that can intelligently distribute c
 
 ### 4.1 Computational Graph Analysis
 
-- Develop algorithms to parse and analyze model architectures from common frameworks (PyTorch, TensorFlowProject_proposal.md)
+- Develop algorithms to parse and analyze model architectures from common frameworks (PyTorch\)
 - Identify dependencies between operations and potential parallelizable components
 - Profile computational intensity and memory requirements of different operations
 
