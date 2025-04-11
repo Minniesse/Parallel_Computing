@@ -69,6 +69,7 @@ def compare_backends(image_path: str, output_dir: str, operation: str,
     """
     # Create output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
+    print("Backend: ", backends)
     
     # Load image
     image = load_image(image_path)
@@ -164,30 +165,48 @@ def demo_pipeline(image_path: str, output_dir: str, use_parallel: bool = False):
     return processed, stats
 
 def main():
-    """Run the example with command-line arguments."""
-    parser = argparse.ArgumentParser(description="Parallel Image Processing Example")
-    parser.add_argument("--image", type=str, default=None, help="Path to input image")
-    parser.add_argument("--output", type=str, default="output", help="Output directory")
-    parser.add_argument("--operation", type=str, choices=["blur", "edge", "color", "pipeline"],
-                       default="pipeline", help="Operation to perform")
-    parser.add_argument("--backends", type=str, nargs="+", 
-                       default=["sequential", "vectorized", "multicore", "gpu"],
-                       help="Backends to use")
-    parser.add_argument("--parallel", action="store_true", help="Use parallel pipeline")
+    """Run the example with fixed parameters for demonstration."""
+    # Define parameters
+    output_dir = "output_demo"
+    backends = [
+        "sequential",  # Standard single-threaded Python execution
+        "vectorized",  # Uses NumPy for optimized array operations
+        "multicore",   # Uses multiprocessing/threading for parallel execution on CPU cores
+        "gpu",         # Uses GPU acceleration (e.g., via CuPy or Numba if available)
+    ]
     
-    args = parser.parse_args()
+    # Create output directory if it doesn't exist
+    os.makedirs(output_dir, exist_ok=True)
     
-    # Create test image if none provided
-    if args.image is None:
-        test_image_path = "test_image.png"
-        args.image = create_test_image(test_image_path)
-        print(f"Created test image: {args.image}")
+    # Create test image
+    test_image_path = os.path.join(output_dir, "test_image.png")
+    image_path = create_test_image(test_image_path)
+    print(f"Created test image: {image_path}\n")
     
-    # Run the selected operation
-    if args.operation == "pipeline":
-        demo_pipeline(args.image, args.output, args.parallel)
-    else:
-        compare_backends(args.image, args.output, args.operation, args.backends)
+    # --- Compare Backends ---
+    print("="*20 + " Comparing Backends " + "="*20)
+    
+    print("\n--- Comparing Blur Backends ---")
+    compare_backends(image_path, os.path.join(output_dir, "compare_blur"), "blur", backends)
+    
+    print("\n--- Comparing Edge Detection Backends ---")
+    compare_backends(image_path, os.path.join(output_dir, "compare_edge"), "edge", backends)
+    
+    print("\n--- Comparing Color Transformation Backends ---")
+    compare_backends(image_path, os.path.join(output_dir, "compare_color"), "color", backends)
+    
+    print("\n" + "="*20 + " Demonstrating Pipelines " + "="*20)
+    
+    # --- Demo Sequential Pipeline ---
+    print("\n--- Running Sequential Pipeline ---")
+    demo_pipeline(image_path, os.path.join(output_dir, "pipeline_sequential"), use_parallel=False)
+    
+    # --- Demo Parallel Pipeline ---
+    print("\n--- Running Parallel Pipeline ---")
+    demo_pipeline(image_path, os.path.join(output_dir, "pipeline_parallel"), use_parallel=True)
+    
+    print("\nDemo finished. Check the '{}' directory for results.".format(output_dir))
+
 
 if __name__ == "__main__":
     main()
